@@ -42,9 +42,9 @@ android {
         buildConfigField "String", "OPENPOSITIONING_MASTER_KEY",
                 "\"${localProperties['OPENPOSITIONING_MASTER_KEY'] ?: ''}\""
 
-            // Add this for manifest placeholders
+//        added
         manifestPlaceholders = [
-                GOOGLE_MAPS_API_KEY: localProperties['MAPS_API_KEY'] ?: ""
+                MAPS_API_KEY: localProperties['MAPS_API_KEY'] ?: ""
         ]
     }
 
