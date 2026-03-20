@@ -87,6 +87,7 @@ public class SensorFusion implements SensorEventListener {
     // PDR and path
     private PdrProcessing pdrProcessing;
     private PathView pathView;
+    private ParticleFilter particleFilter;
 
     // Sensor registration latency setting
     long maxReportLatencyNs = 0;
@@ -645,6 +646,19 @@ public class SensorFusion implements SensorEventListener {
             state.latitude = (float) location.getLatitude();
             state.longitude = (float) location.getLongitude();
             recorder.addGnssData(location);
+
+            // --- 我们添加的粒子滤波逻辑 ---
+            if (particleFilter != null) {
+                // TODO: 我们还需要把经纬度转换成平面的 X,Y 坐标
+                // 假设转换后得到了 float currentX, currentY
+                // float accuracy = location.getAccuracy();
+                // Measurement m = new Measurement(currentX, currentY, accuracy);
+                // particleFilter.updateWeights(m);
+                // particleFilter.resample();
+                // Position myPos = particleFilter.getEstimatedPosition();
+                // 然后把 myPos 显示到地图上！
+            }
+            // ------------------------------
         }
     }
 
