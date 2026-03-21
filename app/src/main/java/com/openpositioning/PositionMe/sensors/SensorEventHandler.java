@@ -38,6 +38,9 @@ public class SensorEventHandler {
 
     // Acceleration magnitude buffer between steps
     private final List<Double> accelMagnitude = new ArrayList<>();
+    // --- 新增：记录上一次的 PDR 坐标，用于计算 deltaX 和 deltaY ---
+    private float lastPdrX = 0f;
+    private float lastPdrY = 0f;
 
     /**
      * Creates a new SensorEventHandler.
@@ -170,6 +173,22 @@ public class SensorEventHandler {
                             this.accelMagnitude,
                             state.orientation[0]
                     );
+                    // --- 新增：给粒子滤波器喂数据 (Predict) ---
+                    // 1. 计算出这一步走出的增量 deltaX 和 deltaY
+                    float deltaX = newCords[0] - lastPdrX;
+                    float deltaY = newCords[1] - lastPdrY;
+
+                    // 2. 更新记录，供下一次使用
+                    lastPdrX = newCords[0];
+                    lastPdrY = newCords[1];
+
+                    // 3. 拿到粒子滤波器，执行预测！
+                    com.openpositioning.PositionMe.fusion.ParticleFilter pf = SensorFusion.getInstance().getParticleFilter();
+                    if (pf != null && (deltaX != 0 || deltaY != 0)) {
+                        // 创建任务单并让所有粒子移动
+                        pf.predict(new com.openpositioning.PositionMe.fusion.PDRMovement(deltaX, deltaY));
+                    }
+                    // -----------------------------------------
 
                     this.accelMagnitude.clear();
 

@@ -51,7 +51,8 @@ public class WifiPositionManager implements Observer {
     public void update(Object[] wifiList) {
         this.wifiList = Stream.of(wifiList).map(o -> (Wifi) o).collect(Collectors.toList());
         recorder.addWifiFingerprint(this.wifiList);
-        createWifiPositioningRequest();
+        // 改为调用带回调的方法：
+        createWifiPositionRequestCallback();
     }
 
     /**
@@ -85,7 +86,47 @@ public class WifiPositionManager implements Observer {
             this.wiFiPositioning.request(wifiFingerPrint, new WiFiPositioning.VolleyCallback() {
                 @Override
                 public void onSuccess(LatLng wifiLocation, int floor) {
-                    // Handle the success response
+                    // --- 开始接入我们的粒子滤波器 ---
+
+                    com.openpositioning.PositionMe.fusion.ParticleFilter pf = SensorFusion.getInstance().getParticleFilter();
+
+                    if (pf != null && wifiLocation != null) {
+
+                        // 1. 获取起始点 GPS 坐标作为本地坐标系的原点 (0,0)
+                        float[] startLoc = SensorFusion.getInstance().getGNSSLatitude(true);
+                        double lat0 = startLoc[0]; // 起点纬度
+                        double lng0 = startLoc[1]; // 起点经度
+
+                        // 2. 将 WiFi 返回的 WGS84 经纬度转换为以米为单位的局部坐标 (X, Y)
+                        // 使用简单的平地近似公式 (Flat Earth Approximation) / 局部切面投影
+                        double R = 6378137.0; // 地球赤道半径（米）
+                        double lat = wifiLocation.latitude;
+                        double lng = wifiLocation.longitude;
+
+                        // 计算经纬度差值并转为弧度
+                        double dLat = Math.toRadians(lat - lat0);
+                        double dLng = Math.toRadians(lng - lng0);
+
+                        // 计算 X 和 Y (米)
+                        // X = 经度差 * 赤道半径 * cos(起点纬度)
+                        // Y = 纬度差 * 赤道半径
+                        float x = (float) (R * dLng * Math.cos(Math.toRadians(lat0)));
+                        float y = (float) (R * dLat);
+
+                        // 3. 创建 Measurement 对象
+                        // 假设 WiFi 定位误差约为 5.0 米 (如果没有具体数值，这里预设一个合理的 sigma)
+                        com.openpositioning.PositionMe.fusion.Measurement m =
+                                new com.openpositioning.PositionMe.fusion.Measurement(x, y, 5.0);
+
+                        // 4. 万事俱备！更新权重并重采样！
+                        pf.updateWeights(m);
+                        pf.resample();
+
+                        // 打印出融合后的最新位置，用于我们在控制台观察它是否生效
+                        com.openpositioning.PositionMe.fusion.Position pos = pf.getEstimatedPosition();
+                        Log.d("ParticleFilter", "融合后的平滑坐标 X: " + pos.x + " Y: " + pos.y);
+                    }
+                    // --- 粒子滤波器接入结束 ---
                 }
 
                 @Override

@@ -87,7 +87,7 @@ public class SensorFusion implements SensorEventListener {
     // PDR and path
     private PdrProcessing pdrProcessing;
     private PathView pathView;
-    private ParticleFilter particleFilter;
+    private com.openpositioning.PositionMe.fusion.ParticleFilter particleFilter;
 
     // Sensor registration latency setting
     long maxReportLatencyNs = 0;
@@ -194,6 +194,12 @@ public class SensorFusion implements SensorEventListener {
                             "WiFi RTT is not supported on this device",
                             Toast.LENGTH_LONG).show());
         }
+        // --- 新增：初始化粒子滤波器 ---
+        // 假设我们用 1000 个粒子。
+        // 注意：目前还没有调用 initialize() 撒点，因为撒点需要地图边界，
+        // 我们等后面获取到地图信息时再调用撒点。
+        this.particleFilter = new com.openpositioning.PositionMe.fusion.ParticleFilter(1000);
+        // ------------------------------
     }
 
     //endregion
@@ -660,6 +666,10 @@ public class SensorFusion implements SensorEventListener {
             }
             // ------------------------------
         }
+    }
+    // --- 新增：获取粒子滤波器实例 ---
+    public com.openpositioning.PositionMe.fusion.ParticleFilter getParticleFilter() {
+        return this.particleFilter;
     }
 
     //endregion
