@@ -12,6 +12,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.widget.Toast;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.preference.PreferenceManager;
@@ -497,6 +498,31 @@ public class SensorFusion implements SensorEventListener {
     public void setStartGNSSLatitude(float[] startPosition) {
         state.startLocation[0] = startPosition[0];
         state.startLocation[1] = startPosition[1];
+        // --- 核心任务：初始化并激活粒子滤波器---
+
+        if (this.particleFilter != null) {
+
+            // 1. 定义一个合理的初始分布范围。
+            //    因为我们的 PDR 是以米为单位的，所以这里的范围也应该是米。
+            //    由于我们现在在起始点，本地坐标系的原点就是 (0, 0)。
+            //    我们可以假设初始不确定性在一个 20米 x 20米 的正方形区域内。
+            float initialUncertainty = 10.0f; // 半径10米
+
+            com.openpositioning.PositionMe.fusion.MapBounds bounds =
+                    new com.openpositioning.PositionMe.fusion.MapBounds(
+                            -initialUncertainty,  // minX
+                            initialUncertainty,  // maxX
+                            -initialUncertainty,  // minY
+                            initialUncertainty   // maxY
+                    );
+
+            // 2. 万事俱备，调用 initialize 进行撒点！
+            //    这会在 (0,0) 点周围 20x20 米的范围内随机撒下 1000 个粒子。
+            this.particleFilter.initialize(bounds);
+
+            Log.d("ParticleFilter", "粒子滤波器已在起始点周围初始化！");
+        }
+        // --- 粒子滤波器激活完成 ---
     }
 
     /**

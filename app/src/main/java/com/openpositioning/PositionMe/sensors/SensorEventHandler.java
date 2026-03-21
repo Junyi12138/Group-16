@@ -168,36 +168,48 @@ public class SensorEventHandler {
                                         + accelMagnitude.size());
                     }
 
-                    float[] newCords = this.pdrProcessing.updatePdr(
+                    float[] rawPdrCords = this.pdrProcessing.updatePdr(
                             stepTime,
                             this.accelMagnitude,
                             state.orientation[0]
                     );
+                    this.accelMagnitude.clear();
                     // --- 新增：给粒子滤波器喂数据 (Predict) ---
                     // 1. 计算出这一步走出的增量 deltaX 和 deltaY
-                    float deltaX = newCords[0] - lastPdrX;
-                    float deltaY = newCords[1] - lastPdrY;
+                    float deltaX = rawPdrCords[0] - lastPdrX;
+                    float deltaY = rawPdrCords[1] - lastPdrY;
 
                     // 2. 更新记录，供下一次使用
-                    lastPdrX = newCords[0];
-                    lastPdrY = newCords[1];
+                    lastPdrX = rawPdrCords[0];
+                    lastPdrY = rawPdrCords[1];
 
                     // 3. 拿到粒子滤波器，执行预测！
                     com.openpositioning.PositionMe.fusion.ParticleFilter pf = SensorFusion.getInstance().getParticleFilter();
+                    float[] finalCordsToDraw = rawPdrCords;
                     if (pf != null && (deltaX != 0 || deltaY != 0)) {
-                        // 创建任务单并让所有粒子移动
+                        // 【第 4 步】: 执行预测，让粒子云散开
                         pf.predict(new com.openpositioning.PositionMe.fusion.PDRMovement(deltaX, deltaY));
-                    }
-                    // -----------------------------------------
 
-                    this.accelMagnitude.clear();
+                        // 【第 5 步 - 核心！】: 从滤波器获取融合后的平滑坐标！
+                        com.openpositioning.PositionMe.fusion.Position fusedPosition = pf.getEstimatedPosition();
+
+                        // 【第 6 步】: 把我们要画的坐标，替换成这个更智能的融合坐标
+                        finalCordsToDraw = new float[]{fusedPosition.x, fusedPosition.y};
+
+                        // 【第 7 步 - 可选】: 打印日志，方便我们对比观察效果
+                        Log.d("ParticleFilter", "PDR原始坐标 X: " + rawPdrCords[0] + " Y: " + rawPdrCords[1]);
+                        Log.d("ParticleFilter", "PF融合坐标  X: " + fusedPosition.x + " Y: " + fusedPosition.y);
+                    }
 
                     if (recorder.isRecording()) {
-                        this.pathView.drawTrajectory(newCords);
+                        // 【第 8 步 - 最终绘图！】: 把我们最终算出的平滑坐标画到屏幕上
+                        this.pathView.drawTrajectory(finalCordsToDraw);
+
                         state.stepCounter++;
+                        // 数据记录仍然记录原始的 PDR 坐标
                         recorder.addPdrData(
                                 SystemClock.uptimeMillis() - bootTime,
-                                newCords[0], newCords[1]);
+                                rawPdrCords[0], rawPdrCords[1]);
                     }
                     break;
                 }
