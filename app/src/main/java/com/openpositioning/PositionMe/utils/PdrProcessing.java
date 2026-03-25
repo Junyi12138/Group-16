@@ -82,16 +82,18 @@ public class PdrProcessing {
     public PdrProcessing(Context context) {
         // Initialise settings
         this.settings = PreferenceManager.getDefaultSharedPreferences(context);
-        // Check if estimate or manual values should be used
-        this.useManualStep = this.settings.getBoolean("manual_step_values", false);
+//        // Check if estimate or manual values should be used
+//        this.useManualStep = this.settings.getBoolean("manual_step_values", false);
+        // 强制开启手动步长模式，不再使用不准的自动估计算法！
+        this.useManualStep = true;
         if(useManualStep) {
             try {
                 // Retrieve manual step  length
-                this.stepLength = this.settings.getInt("user_step_length", 75) / 100f;
+                this.stepLength = this.settings.getInt("user_step_length", 20) / 100f;
             } catch (Exception e) {
                 // Invalid values - reset to defaults
-                this.stepLength = 0.75f;
-                this.settings.edit().putInt("user_step_length", 75).apply();
+                this.stepLength = 0.20f;
+                this.settings.edit().putInt("user_step_length", 20).apply();
             }
         }
         else {
@@ -153,7 +155,7 @@ public class PdrProcessing {
             // return current position, do not update
             return new float[]{this.positionX, this.positionY};
         }
-        
+
         // Calculate step length
         if(!useManualStep) {
             //ArrayList<Double> accelMagnitudeFiltered = filter(accelMagnitudeOvertime);
@@ -161,6 +163,9 @@ public class PdrProcessing {
             this.stepLength = weibergMinMax(accelMagnitudeOvertime);
             // System.err.println("Step Length" + stepLength);
         }
+        // ！！！强制修正：无视所有前面的算法，步长就按我们说的算！！！
+        // ！！！我们先从一个极小的值开始测试，比如 30 厘米 ！！！
+        stepLength = 0.70f;
 
         // Increment aggregate variables
         sumStepLength += stepLength;

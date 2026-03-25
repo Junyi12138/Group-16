@@ -49,7 +49,8 @@ public class WifiPositionManager implements Observer {
      */
     @Override
     public void update(Object[] wifiList) {
-        this.wifiList = Stream.of(wifiList).map(o -> (Wifi) o).collect(Collectors.toList());
+        android.util.Log.d("WifiProbe", "太好了！接收到了WiFi扫描数据！");
+        this.wifiList = Stream.of(wifiList).map(o -> (Wifi) o).filter(w -> w.getLevel() < -40).collect(Collectors.toList());
         recorder.addWifiFingerprint(this.wifiList);
         // 改为调用带回调的方法：
         createWifiPositionRequestCallback();
@@ -68,6 +69,7 @@ public class WifiPositionManager implements Observer {
             wifiFingerPrint.put(WIFI_FINGERPRINT, wifiAccessPoints);
             this.wiFiPositioning.request(wifiFingerPrint);
         } catch (JSONException e) {
+            android.util.Log.e("WifiProbe", "JSON打包失败: " + e.toString());
             Log.e("jsonErrors", "Error creating json object" + e.toString());
         }
     }
@@ -83,11 +85,12 @@ public class WifiPositionManager implements Observer {
             }
             JSONObject wifiFingerPrint = new JSONObject();
             wifiFingerPrint.put(WIFI_FINGERPRINT, wifiAccessPoints);
+            android.util.Log.d("WifiProbe", "准备发送网络请求到服务器...");
             this.wiFiPositioning.request(wifiFingerPrint, new WiFiPositioning.VolleyCallback() {
                 @Override
                 public void onSuccess(LatLng wifiLocation, int floor) {
+                    Log.d("WifiSuccess", "✅✅✅ 融合系统已接收WiFi坐标，准备更新粒子！✅✅✅");
                     // --- 开始接入我们的粒子滤波器 ---
-
                     com.openpositioning.PositionMe.fusion.ParticleFilter pf = SensorFusion.getInstance().getParticleFilter();
 
                     if (pf != null && wifiLocation != null) {
@@ -116,7 +119,7 @@ public class WifiPositionManager implements Observer {
                         // 3. 创建 Measurement 对象
                         // 假设 WiFi 定位误差约为 5.0 米 (如果没有具体数值，这里预设一个合理的 sigma)
                         com.openpositioning.PositionMe.fusion.Measurement m =
-                                new com.openpositioning.PositionMe.fusion.Measurement(x, y, 5.0);
+                                new com.openpositioning.PositionMe.fusion.Measurement(x, y, 10.0);
 
                         // 4. 万事俱备！更新权重并重采样！
                         pf.updateWeights(m);
@@ -132,6 +135,7 @@ public class WifiPositionManager implements Observer {
                 @Override
                 public void onError(String message) {
                     // Handle the error response
+                    android.util.Log.e("WifiProbe", "服务器报错了: " + message);
                 }
             });
         } catch (JSONException e) {

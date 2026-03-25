@@ -137,6 +137,7 @@ public class WiFiPositioning {
                 Request.Method.POST, url, jsonWifiFeatures,
                 response -> {
                     try {
+                        Log.d("WifiSuccess", "✅✅✅ WiFi定位API成功！服务器返回坐标！✅✅✅");
                         Log.d("jsonObject",response.toString());
                         wifiLocation = new LatLng(response.getDouble("lat"),response.getDouble("lon"));
                         floor = response.getInt("floor");
@@ -147,25 +148,31 @@ public class WiFiPositioning {
                     }
                 },
                 error -> {
-                    // Validation Error
-                    if (error.networkResponse!=null && error.networkResponse.statusCode==422){
-                        Log.e("WiFiPositioning", "Validation Error "+ error.getMessage());
-                        callback.onError( "Validation Error (422): "+ error.getMessage());
-                    }
-                    // Other Errors
-                    else{
-                        // When Response code is available
-                        if (error.networkResponse!=null) {
-                            Log.e("WiFiPositioning","Response Code: " + error.networkResponse.statusCode + ", " + error.getMessage());
-                            callback.onError("Response Code: " + error.networkResponse.statusCode + ", " + error.getMessage());
+                    if (error.networkResponse != null) {
+                        int statusCode = error.networkResponse.statusCode;
+                        String responseBody = "无返回体数据";
+
+                        // 提取服务器返回的真实错误信息
+                        if (error.networkResponse.data != null) {
+                            try {
+                                responseBody = new String(error.networkResponse.data, "UTF-8");
+                            } catch (Exception e) {
+                                responseBody = "解析响应体失败";
+                            }
                         }
-                        else{
-                            Log.e("WiFiPositioning","Error message: " + error.getMessage());
-                            callback.onError("Error message: " + error.getMessage());
-                        }
+
+                        Log.e("WifiProbe", "HTTP 状态码: " + statusCode + ", 服务器回复: " + responseBody);
+                        callback.onError("Status: " + statusCode + " Body: " + responseBody);
+
+                    } else {
+                        // 根本没连上服务器（比如没网、超时、DNS解析失败等）
+                        Log.e("WifiProbe", "网络底层错误: " + error.toString());
+                        callback.onError("Network Error: " + error.toString());
                     }
                 }
         );
+        // ！！！新增：打印我们要发送给服务器的“WiFi指纹证据” ！！！
+        Log.d("WifiProbe", "==== 即将发送的 WiFi 指纹: ==== \n" + jsonWifiFeatures.toString());
         // Adds the request to the request queue
         requestQueue.add(jsonObjectRequest);
     }

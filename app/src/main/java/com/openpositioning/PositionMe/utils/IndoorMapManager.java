@@ -161,14 +161,21 @@ public class IndoorMapManager {
     public void setCurrentFloor(int newFloor, boolean autoFloor) {
         if (currentFloorShapes == null || currentFloorShapes.isEmpty()) return;
 
+        int targetIndex = -1;
+
         if (autoFloor) {
-            newFloor += getAutoFloorBias();
+            // 如果是自动切换（来自WiFi/气压计的数字 0, 1, -1）
+            // 现在的列表顺序很整齐：-1对应0, 0对应1, 1对应2...
+            // 规律就是：索引 = 物理楼层 + 1
+            targetIndex = newFloor + 1;
+        } else {
+            // 如果是手动按钮传入的，它传的通常就是目标 index
+            targetIndex = newFloor;
         }
 
-        if (newFloor >= 0 && newFloor < currentFloorShapes.size()
-                && newFloor != this.currentFloor) {
-            this.currentFloor = newFloor;
-            drawFloorShapes(newFloor);
+        if (targetIndex >= 0 && targetIndex < currentFloorShapes.size()) {
+            this.currentFloor = targetIndex;
+            drawFloorShapes(targetIndex);
         }
     }
 

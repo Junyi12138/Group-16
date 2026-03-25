@@ -30,7 +30,7 @@ public class Particle {
         // random.nextGaussian() 生成一个符合标准正态分布（均值为0，标准差为1）的随机数
         // 我们把它乘以一个很小的值（比如0.1），来控制噪声的大小（即标准差为0.1米）
         // 这意味着大部分噪声会在-0.1米到+0.1米之间，少数会更大一些。这比均匀分布更真实。
-        this.x += random.nextGaussian() * 0.1;
-        this.y += random.nextGaussian() * 0.1;
+        this.x += random.nextGaussian() * 0.05;
+        this.y += random.nextGaussian() * 0.05;
     }
 }

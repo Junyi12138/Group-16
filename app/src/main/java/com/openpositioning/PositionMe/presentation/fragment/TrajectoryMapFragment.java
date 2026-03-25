@@ -96,6 +96,8 @@ public class TrajectoryMapFragment extends Fragment {
     private TextView floorLabel;
     private Button switchColorButton;
     private Polygon buildingPolygon;
+    private long lastAuthoritativeTime = 0;
+    private boolean hasAuthoritativeSource = false;
 
 
     public TrajectoryMapFragment() {
@@ -691,19 +693,32 @@ public class TrajectoryMapFragment extends Fragment {
         if (!indoorMapManager.getIsIndoorMapSet()) return;
 
         int candidateFloor;
+        boolean hasAuthoritativeSource = false; // 新增一个标志，判断我们是否有“权威”信源
 
-        // Priority 1: WiFi-based floor (only if WiFi positioning has returned data)
+        // 👑 最高优先级：使用 WiFi 定位返回的楼层 (如果有)
         if (sensorFusion.getLatLngWifiPositioning() != null) {
+            // WiFi API 返回的楼层通常是以 0 为地面的，最可靠
             candidateFloor = sensorFusion.getWifiFloor();
+            hasAuthoritativeSource = true;
+            android.util.Log.d("FloorDebug", "楼层来源: WiFi, 原始值: " + candidateFloor);
         } else {
-            // Fallback: barometric elevation estimate
+            // ⚠️ 次要优先级：使用气压计估算楼层
             float elevation = sensorFusion.getElevation();
             float floorHeight = indoorMapManager.getFloorHeight();
-            if (floorHeight <= 0) return;
+
+            if (floorHeight <= 0) {
+                // 如果没有设置楼层高度，则无法计算，直接退出
+                return;
+            }
+
+            // 使用气压计计算楼层，同样以 0 为地面
+            // Math.round() 会四舍五入到最近的整数
             candidateFloor = Math.round(elevation / floorHeight);
+            android.util.Log.d("FloorDebug", "楼层来源: 气压计, 海拔: " + elevation + ", 计算值: " + candidateFloor);
         }
 
-        // Debounce: require the same floor reading for AUTO_FLOOR_DEBOUNCE_MS
+        // --- 防抖动逻辑 (Debounce) 保持不变 ---
+        // (这部分逻辑是好的，可以防止楼层在两个值之间快速跳变)
         long now = SystemClock.elapsedRealtime();
         if (candidateFloor != lastCandidateFloor) {
             lastCandidateFloor = candidateFloor;
@@ -712,9 +727,17 @@ public class TrajectoryMapFragment extends Fragment {
         }
 
         if (now - lastCandidateTime >= AUTO_FLOOR_DEBOUNCE_MS) {
-            indoorMapManager.setCurrentFloor(candidateFloor, true);
-            updateFloorLabel();
-            // Reset timer so we don't keep re-applying the same floor
+            // 只有当信号源是权威的（WiFi），或者我们长时间没有权威信号时，才更新楼层
+            // 这可以防止不准的气压计覆盖掉刚定位成功的 WiFi 楼层
+            if (hasAuthoritativeSource || (now - lastAuthoritativeTime > 15000)) { // 超过15秒没收到WiFi才信气压计
+                indoorMapManager.setCurrentFloor(candidateFloor, true);
+                updateFloorLabel();
+
+                if (hasAuthoritativeSource) {
+                    lastAuthoritativeTime = now; // 记录上次权威更新的时间
+                }
+            }
+            // 重置计时器
             lastCandidateTime = now;
         }
     }

@@ -679,18 +679,50 @@ public class SensorFusion implements SensorEventListener {
             state.longitude = (float) location.getLongitude();
             recorder.addGnssData(location);
 
-            // --- 我们添加的粒子滤波逻辑 ---
-            if (particleFilter != null) {
-                // TODO: 我们还需要把经纬度转换成平面的 X,Y 坐标
-                // 假设转换后得到了 float currentX, currentY
-                // float accuracy = location.getAccuracy();
-                // Measurement m = new Measurement(currentX, currentY, accuracy);
-                // particleFilter.updateWeights(m);
-                // particleFilter.resample();
-                // Position myPos = particleFilter.getEstimatedPosition();
-                // 然后把 myPos 显示到地图上！
+            // --- 激活粒子滤波的 GNSS (GPS) 纠偏功能！ ---
+            com.openpositioning.PositionMe.fusion.ParticleFilter pf = getParticleFilter();
+
+            if (pf != null && state.startLocation != null && state.startLocation[0] != 0.0f) {
+
+                float realAccuracy = location.getAccuracy();
+
+                // ！！！核心修改：智能拒止劣质 GPS 信号 ！！！
+                // 在室内，GPS 误差通常会飙升到 20米、50米甚至更高。
+                // 此时的坐标毫无价值，如果强行使用，会把红线带飞。
+                // 设定门槛：如果误差大于 20 米，直接忽略这次 GPS 数据！
+                if (realAccuracy > 20.0f) {
+                    android.util.Log.d("ParticleFilter", "GPS 信号太差 (" + realAccuracy + "m)，果断拒绝，不进行纠偏！");
+                    return; // 提前结束方法，不执行 updateWeights
+                }
+
+                // 1. 获取起点 GPS 坐标，作为平面坐标系的原点 (0,0)
+                double lat0 = state.startLocation[0];
+                double lng0 = state.startLocation[1];
+
+                // 2. 获取当前 GPS 坐标
+                double lat = location.getLatitude();
+                double lng = location.getLongitude();
+
+                // 3. 转换为平面坐标 (米)
+                double R = 6378137.0;
+                double dLat = Math.toRadians(lat - lat0);
+                double dLng = Math.toRadians(lng - lng0);
+                float x = (float) (R * dLng * Math.cos(Math.toRadians(lat0)));
+                float y = (float) (R * dLat);
+
+                // 4. 信号既然合格（小于 20米），我们就使用它真实的误差来进行更新。
+                // 为了防止极个别手机报告的误差接近 0 导致崩溃，设置个下限。
+                float usedSigma = Math.max(realAccuracy, 10.0f);
+
+                com.openpositioning.PositionMe.fusion.Measurement gnssMeasurement =
+                        new com.openpositioning.PositionMe.fusion.Measurement(x, y, usedSigma);
+
+                // 5. 喂给粒子滤波器
+                pf.updateWeights(gnssMeasurement);
+                pf.resample();
+
+                android.util.Log.d("ParticleFilter", "GNSS 优质纠偏触发！当前误差: " + usedSigma + " 米");
             }
-            // ------------------------------
         }
     }
     // --- 新增：获取粒子滤波器实例 ---
